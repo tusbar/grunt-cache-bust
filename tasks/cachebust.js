@@ -30,6 +30,8 @@ module.exports = function() {
         // Generate an asset map
         var assetMap = grunt.file
             .expand(discoveryOpts, opts.assets)
+            .sort()
+            .reverse()
             .reduce(hashFilename, {});
 
         // Create an array of the assets that were found in files
