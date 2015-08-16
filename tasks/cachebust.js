@@ -30,7 +30,30 @@ module.exports = function() {
         // Generate an asset map
         var assetMap = grunt.file
             .expand(discoveryOpts, opts.assets)
-            .reduce(hashFile, {});
+            .reduce(hashFilename, {});
+
+        // Create an array of the assets that were found in files
+        var foundAssets = [];
+
+        this.files.forEach(function (file) {
+            file.src.forEach(function (path) {
+                var markup = grunt.file.read(path);
+
+                _.each(assetMap, function (hashed, original) {
+                    var fragments = markup.split(original);
+                    if (fragments.length > 1) {
+                        // The asset was found, let’s save it.
+                        foundAssets.push(original);
+
+                        markup = fragments.join(hashed);
+                        grunt.file.write(path, markup);
+                    }
+                });
+            });
+        });
+
+        // Remove the assets that were not found from the map
+        assetMap = _.pick(assetMap, foundAssets);
 
         console.log(assetMap);
 
@@ -40,33 +63,25 @@ module.exports = function() {
             grunt.file.write(path.resolve(opts.baseDir, filename), JSON.stringify(assetMap));
         }
 
-        // Go through each source file and replace terms
-        this.files.forEach(function (file) {
-            file.src.forEach(replaceInFile);
+        // Write the busted assets to disk
+        _.each(assetMap, function (hashed, original) {
+            var oldPath = path.resolve(opts.baseDir, original);
+            var newPath = path.resolve(opts.baseDir, hashed);
+
+            grunt.file.copy(oldPath, newPath);
+
+            // Remove the original assets
+            if(opts.deleteOriginals) {
+                grunt.file.delete(oldPath);
+            }
         });
 
-        function replaceInFile(filepath) {
-            var markup = grunt.file.read(filepath);
-
-            _.each(assetMap, function(hashed, original) {
-                markup = markup.split(original).join(hashed);
-            });
-
-            grunt.file.write(filepath, markup);
-        }
-
-        function hashFile(obj, file) {
+        function hashFilename(obj, file) {
             var absPath = path.resolve(opts.baseDir, file);
             var hash = generateFileHash(grunt.file.read(absPath, {
                 encoding: null
             }));
             var newFilename = addFileHash(file, hash, opts.separator);
-
-            grunt.file.copy(absPath, path.resolve(opts.baseDir, newFilename));
-
-            if(opts.deleteOriginals) {
-                grunt.file.delete(absPath);
-            }
 
             obj[file] = newFilename;
 
